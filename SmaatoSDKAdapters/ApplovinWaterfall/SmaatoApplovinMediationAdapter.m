@@ -11,7 +11,6 @@
 #import <SmaatoSDKBanner/SmaatoSDKBanner.h>
 #import <SmaatoSDKInterstitial/SmaatoSDKInterstitial.h>
 #import <SmaatoSDKRewardedAds/SmaatoSDKRewardedAds.h>
-#import <SmaatoSDKCore/SmaatoSDK+Private.h>
 
 #define PARAM_PUB_ID @"pub_id"
 #define DUMMY_ID @"dummyid"
@@ -61,6 +60,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 
 
 - (void)initializeWithParameters:(id<MAAdapterInitializationParameters>)parameters completionHandler:(void (^)(MAAdapterInitializationStatus, NSString *_Nullable))completionHandler {
+    [self log: @"initializeWithParameters called"];
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         ALSmaatoInitializationStatus = MAAdapterInitializationStatusInitializing;
@@ -74,10 +74,10 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
         
         SMAConfiguration *config = [[SMAConfiguration alloc] initWithPublisherId: pubID];
         config.logLevel = [parameters isTesting] ? kSMALogLevelVerbose : kSMALogLevelError;
-        config.httpsOnly = [parameters.customParameters al_numberForKey: @"https_only"].boolValue;
+        config.httpsOnly = [parameters.customParameters al_boolForKey: @"https_only"];
         config.loggingDisabled = false;
         [SmaatoSDK initSDKWithConfig: config];
-        if([SmaatoSDK isInitialized]){
+        if([SmaatoSDK isSDKInitialized]){
             ALSmaatoInitializationStatus = MAAdapterInitializationStatusInitializedSuccess;
             [self log: @"Smaato SDK initialized"];
             completionHandler(ALSmaatoInitializationStatus,nil);
@@ -88,7 +88,6 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
         }
     });
     
-    completionHandler(ALSmaatoInitializationStatus,nil);
 }
 
 - (NSString *)SDKVersion
