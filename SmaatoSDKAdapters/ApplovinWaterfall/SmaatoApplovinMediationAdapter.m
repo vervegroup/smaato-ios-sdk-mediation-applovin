@@ -14,7 +14,7 @@
 
 #define PARAM_PUB_ID @"pub_id"
 #define DUMMY_ID @"dummyid"
-static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"11.11.3.1";
+static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"11.11.3.2";
 static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin;
 
 /**
@@ -207,7 +207,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     NSString* placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
     [self updateAgeRestrictedUser: parameters];
     [self updateLocationCollectionEnabled: parameters];
-    
+    self.interstitialAdapterDelegate = [[SmaatoAppLovinMediationInterstitialAdDelegate alloc]initWithSmaatoWaterfallAdapter:self andNotify:delegate];
     if ( !placementIdentifier || ![placementIdentifier al_isValidString])
     {
         [self log: @"Interstitial ad load failed: ad request nil with valid bid response"];
@@ -254,7 +254,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     [self updateAgeRestrictedUser: parameters];
     [self updateLocationCollectionEnabled: parameters];
     
-    
+    self.rewardedAdapterDelegate = [[SmaatoAppLovinMediationRewardedAdDelegate alloc]initWithSmaatoWaterfallAdapter:self andNotify:delegate];
     if (!placementIdentifier || ![placementIdentifier al_isValidString])
     {
         [self log: @"Rewarded ad load failed: ad request nil with valid bid response"];
