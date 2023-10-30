@@ -14,8 +14,17 @@
 
 #define PARAM_PUB_ID @"pub_id"
 #define DUMMY_ID @"dummyid"
-static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"11.11.3.2";
+static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"11.11.3.3";
 static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin;
+
+/**
+ * Router for interstitial/rewarded ad events.
+ * Ads are removed on ad displayed/expired, as Smaato will allow a new ad load for the same adSpaceId.
+ */
+@interface SmaatoMediationAdapterRouter : ALMediationAdapterRouter <SMAInterstitialDelegate, SMARewardedInterstitialDelegate>
+- (nullable SMAInterstitial *)interstitialAdForPlacementIdentifier:(NSString *)placementIdentifier;
+- (nullable SMARewardedInterstitial *)rewardedAdForPlacementIdentifier:(NSString *)placementIdentifier;
+@end
 
 /**
  * Smaato banners are instance-based.
@@ -26,18 +35,18 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 - (instancetype)initWithSmaatoWaterfallAdapter:(SmaatoApplovinMediationAdapter *)smaatoWaterfallAdapter andNotify:(id<MAAdViewAdapterDelegate>)delegate;
 @end
 
-@interface SmaatoAppLovinMediationInterstitialAdDelegate : NSObject<SMAInterstitialDelegate>
-@property (nonatomic, weak) SmaatoApplovinMediationAdapter *smaatoWaterfallAdapter;
-@property (nonatomic, strong) id<MAInterstitialAdapterDelegate> delegate;
-- (instancetype)initWithSmaatoWaterfallAdapter:(SmaatoApplovinMediationAdapter *)smaatoWaterfallAdapter andNotify:(id<MAInterstitialAdapterDelegate>)delegate;
-@end
-
-@interface SmaatoAppLovinMediationRewardedAdDelegate : NSObject<SMARewardedInterstitialDelegate>
-@property (nonatomic, weak) SmaatoApplovinMediationAdapter *smaatoWaterfallAdapter;
-@property (nonatomic, strong) id<MARewardedAdapterDelegate> delegate;
-@property (nonatomic, assign, getter=hasGrantedReward) BOOL grantedReward;
-- (instancetype)initWithSmaatoWaterfallAdapter:(SmaatoApplovinMediationAdapter *)smaatoWaterfallAdapter andNotify:(id<MARewardedAdapterDelegate>)delegate;
-@end
+//@interface SmaatoAppLovinMediationInterstitialAdDelegate : NSObject<SMAInterstitialDelegate>
+//@property (nonatomic, weak) SmaatoApplovinMediationAdapter *smaatoWaterfallAdapter;
+//@property (nonatomic, strong) id<MAInterstitialAdapterDelegate> delegate;
+//- (instancetype)initWithSmaatoWaterfallAdapter:(SmaatoApplovinMediationAdapter *)smaatoWaterfallAdapter andNotify:(id<MAInterstitialAdapterDelegate>)delegate;
+//@end
+//
+//@interface SmaatoAppLovinMediationRewardedAdDelegate : NSObject<SMARewardedInterstitialDelegate>
+//@property (nonatomic, weak) SmaatoApplovinMediationAdapter *smaatoWaterfallAdapter;
+//@property (nonatomic, strong) id<MARewardedAdapterDelegate> delegate;
+//@property (nonatomic, assign, getter=hasGrantedReward) BOOL grantedReward;
+//- (instancetype)initWithSmaatoWaterfallAdapter:(SmaatoApplovinMediationAdapter *)smaatoWaterfallAdapter andNotify:(id<MARewardedAdapterDelegate>)delegate;
+//@end
 
 @interface SmaatoApplovinMediationAdapter()
 
@@ -48,11 +57,16 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 
 // Interstitial
 @property (nonatomic, strong) SMAInterstitial *interstitialAd;
-@property (nonatomic, strong) SmaatoAppLovinMediationInterstitialAdDelegate *interstitialAdapterDelegate;
+//@property (nonatomic, strong) SmaatoAppLovinMediationInterstitialAdDelegate *interstitialAdapterDelegate;
 
 // Rewarded
 @property (nonatomic, strong) SMARewardedInterstitial *rewardedAd;
-@property (nonatomic, strong) SmaatoAppLovinMediationRewardedAdDelegate *rewardedAdapterDelegate;
+//@property (nonatomic, strong) SmaatoAppLovinMediationRewardedAdDelegate *rewardedAdapterDelegate;
+// Used by the mediation adapter router
+@property (nonatomic, copy, nullable) NSString *placementIdentifier;
+// Interstitial/Rewarded ad delegate router
+@property (nonatomic, strong, readonly) SmaatoMediationAdapterRouter *router;
+
 
 
 @end
@@ -161,6 +175,12 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     }
     return [MAAdapterError errorWithCode:adapterError.errorCode errorString:adapterError.errorMessage mediatedNetworkErrorCode:smaatoErrorCode mediatedNetworkErrorMessage:smaatoError.localizedDescription];
 }
+#pragma mark - Dynamic Properties
+
+- (SmaatoMediationAdapterRouter *)router
+{
+    return [SmaatoMediationAdapterRouter sharedInstance];
+}
 
 - (void)destroy
 {
@@ -168,9 +188,9 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     self.bannerAdView = nil;
     self.bannerAdViewAdapterDelegate.delegate = nil;
     self.bannerAdViewAdapterDelegate = nil;
-    self.interstitialAdapterDelegate.delegate = nil;
+   // self.interstitialAdapterDelegate.delegate = nil;
     self.interstitialAd = nil;
-    self.rewardedAdapterDelegate = nil;
+   // self.rewardedAdapterDelegate = nil;
     self.rewardedAd = nil;
 }
 
@@ -207,15 +227,27 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     NSString* placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
     [self updateAgeRestrictedUser: parameters];
     [self updateLocationCollectionEnabled: parameters];
-    self.interstitialAdapterDelegate = [[SmaatoAppLovinMediationInterstitialAdDelegate alloc]initWithSmaatoWaterfallAdapter:self andNotify:delegate];
+ //   self.interstitialAdapterDelegate = [[SmaatoAppLovinMediationInterstitialAdDelegate alloc]initWithSmaatoWaterfallAdapter:self andNotify:delegate];
+    [self.router addInterstitialAdapter: self
+                               delegate: delegate
+                 forPlacementIdentifier: self.placementIdentifier];
+    
+    if ( [[self.router interstitialAdForPlacementIdentifier: self.placementIdentifier] availableForPresentation] )
+    {
+        [self log: @"Interstitial ad already loaded for placement: %@...", self.placementIdentifier];
+        [delegate didLoadInterstitialAd];
+        
+        return;
+    }
+    
     if ( !placementIdentifier || ![placementIdentifier al_isValidString])
     {
-        [self log: @"Interstitial ad load failed: ad request nil with valid bid response"];
+        [self log: @"Interstitial ad load failed: ad request nil"];
         [delegate didFailToLoadInterstitialAdWithError: MAAdapterError.invalidConfiguration];
     }
     else
     {
-        [SmaatoSDK loadInterstitialForAdSpaceId: placementIdentifier delegate: self.interstitialAdapterDelegate];
+        [SmaatoSDK loadInterstitialForAdSpaceId: placementIdentifier delegate: self.router];
     }
 }
 
@@ -223,7 +255,9 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 {
     NSString *placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
     [self log: @"Showing interstitial ad for placement: %@...", placementIdentifier];
+    [self.router addShowingAdapter: self];
     
+    self.interstitialAd = [self.router interstitialAdForPlacementIdentifier: placementIdentifier];
     
     if ( [self.interstitialAd availableForPresentation] )
     {
@@ -239,10 +273,11 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
         
         [self.interstitialAd showFromViewController: presentingViewController];
     }
-    else
     {
         [self log: @"Interstitial ad not ready"];
-        [delegate didFailToDisplayInterstitialAdWithError:MAAdapterError.adNotReady];
+        [self.router didFailToDisplayAdForPlacementIdentifier: placementIdentifier error: [MAAdapterError errorWithCode: -4205
+                                                                                                            errorString: @"Ad Display Failed"
+                                                                                                 mediatedNetworkErrorCode:0 mediatedNetworkErrorMessage:@"Interstitial ad not ready"]];
     }
 }
 #pragma mark - MARewardedAdapter Methods
@@ -254,22 +289,35 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     [self updateAgeRestrictedUser: parameters];
     [self updateLocationCollectionEnabled: parameters];
     
-    self.rewardedAdapterDelegate = [[SmaatoAppLovinMediationRewardedAdDelegate alloc]initWithSmaatoWaterfallAdapter:self andNotify:delegate];
+    //self.rewardedAdapterDelegate = [[SmaatoAppLovinMediationRewardedAdDelegate alloc]initWithSmaatoWaterfallAdapter:self andNotify:delegate];
+    [self.router addRewardedAdapter: self
+                           delegate: delegate
+             forPlacementIdentifier: self.placementIdentifier];
+    
+    if ( [[self.router rewardedAdForPlacementIdentifier: self.placementIdentifier] availableForPresentation] )
+    {
+        [self log: @"Rewarded ad already loaded for placement: %@...", self.placementIdentifier];
+        [delegate didLoadRewardedAd];
+        
+        return;
+    }
     if (!placementIdentifier || ![placementIdentifier al_isValidString])
     {
-        [self log: @"Rewarded ad load failed: ad request nil with valid bid response"];
+        [self log: @"Rewarded ad load failed: ad request nil"];
         [delegate didFailToLoadRewardedAdWithError: MAAdapterError.invalidConfiguration];
     }
     else
     {
-        [SmaatoSDK loadRewardedInterstitialForAdSpaceId: placementIdentifier delegate: self.rewardedAdapterDelegate];
+        [SmaatoSDK loadRewardedInterstitialForAdSpaceId: placementIdentifier delegate: self.router];
     }
 }
 - (void)showRewardedAdForParameters:(id<MAAdapterResponseParameters>)parameters andNotify:(id<MARewardedAdapterDelegate>)delegate
 {
     NSString *placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
     [self log: @"Showing rewarded ad for placement: %@...", placementIdentifier];
+    [self.router addShowingAdapter: self];
     
+    self.rewardedAd = [self.router rewardedAdForPlacementIdentifier: placementIdentifier];
     
     if ( [self.rewardedAd availableForPresentation] )
     {
@@ -291,7 +339,10 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     else
     {
         [self log: @"Rewarded ad not ready"];
-        [delegate didFailToDisplayRewardedAdWithError: MAAdapterError.adNotReady];
+        [self.router didFailToDisplayAdForPlacementIdentifier: placementIdentifier error: [MAAdapterError errorWithCode: -4205
+                                                                                                            errorString: @"Ad Display Failed"
+                                                                                               mediatedNetworkErrorCode: 0
+                                                                                            mediatedNetworkErrorMessage: @"Rewarded ad not ready"]];
     }
 }
 @end
@@ -371,176 +422,242 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 }
 @end
 
-#pragma mark - Interstitial Delegate Methods
+#pragma mark - Smaato Interstitial/Rewarded Router
 
-@implementation SmaatoAppLovinMediationInterstitialAdDelegate
+@interface SmaatoMediationAdapterRouter ()
+// Interstitial
+@property (nonatomic, strong) NSMutableDictionary<NSString *, SMAInterstitial *> *interstitialAds;
+@property (nonatomic, strong) NSObject *interstitialAdsLock;
 
-- (instancetype)initWithSmaatoWaterfallAdapter:(SmaatoApplovinMediationAdapter *)parentAdapter andNotify:(id<MAInterstitialAdapterDelegate>)delegate
+// Rewarded
+@property (nonatomic, strong) NSMutableDictionary<NSString *, SMARewardedInterstitial *> *rewardedAds;
+@property (nonatomic, strong) NSObject *rewardedAdsLock;
+
+@property (nonatomic, assign, getter=hasGrantedReward) BOOL grantedReward;
+@end
+
+@implementation SmaatoMediationAdapterRouter
+
+- (instancetype)init
 {
     self = [super init];
     if ( self )
     {
-        self.smaatoWaterfallAdapter = parentAdapter;
-        self.delegate = delegate;
+        self.interstitialAdsLock = [[NSObject alloc] init];
+        self.interstitialAds = [NSMutableDictionary dictionary];
+        
+        self.rewardedAdsLock = [[NSObject alloc] init];
+        self.rewardedAds = [NSMutableDictionary dictionary];
     }
     return self;
 }
 
-- (void)interstitialDidTrackImpression
+- (nullable SMAInterstitial *)interstitialAdForPlacementIdentifier:(NSString *)placementIdentifier
 {
-    [self.smaatoWaterfallAdapter log: @"Interstitial did track impression"];
-    [self.delegate didDisplayInterstitialAd];
+    @synchronized ( self.interstitialAdsLock )
+    {
+        return self.interstitialAds[placementIdentifier];
+    }
 }
 
-- (void)interstitialDidTrackClick
+- (nullable SMARewardedInterstitial *)rewardedAdForPlacementIdentifier:(NSString *)placementIdentifier
 {
-    [self.smaatoWaterfallAdapter log: @"Interstitial clicked"];
-    [self.delegate didClickInterstitialAd];
+    @synchronized ( self.rewardedAdsLock )
+    {
+        return self.rewardedAds[placementIdentifier];
+    }
 }
 
-- (void)interstitialDidDismiss
-{
-    [self.smaatoWaterfallAdapter log: @"Interstitial hidden"];
-    [self.delegate didHideInterstitialAd];
-}
+#pragma mark - Interstitial Delegate Methods
 
-- (void)interstitialDidTTLExpire:(SMAInterstitial * _Nonnull)interstitial {
-    [self.smaatoWaterfallAdapter log: @"Interstitial TTL Expire"];
-}
 - (void)interstitialDidLoad:(SMAInterstitial *)interstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Interstitial ad loaded"];
-    [self.delegate didLoadInterstitialAd];
+    NSString *placementIdentifier = interstitial.adSpaceId;
+    
+    @synchronized ( self.interstitialAdsLock )
+    {
+        self.interstitialAds[placementIdentifier] = interstitial;
+    }
+    
+    [self log: @"Interstitial ad loaded for placement: %@...", placementIdentifier];
+    [self didLoadAdForCreativeIdentifier: interstitial.sci placementIdentifier: placementIdentifier];
 }
 
 - (void)interstitial:(nullable SMAInterstitial *)interstitial didFailWithError:(NSError *)error
 {
-    [self.smaatoWaterfallAdapter log: @"Interstitial ad failed to load with error: %@", error];
+    NSString *placementIdentifier = interstitial.adSpaceId;
+    
+    [self log: @"Interstitial ad failed to load for placement: %@...with error: %@", placementIdentifier, error];
     
     MAAdapterError *adapterError = [SmaatoApplovinMediationAdapter toMaxError: error];
-    [self.delegate didFailToLoadInterstitialAdWithError: adapterError];
+    [self didFailToLoadAdForPlacementIdentifier: placementIdentifier error: adapterError];
+}
+
+- (void)interstitialDidTTLExpire:(SMAInterstitial *)interstitial
+{
+    [self log: @"Interstitial ad expired"];
+    
+    @synchronized ( self.interstitialAdsLock )
+    {
+        [self.interstitialAds removeObjectForKey: interstitial.adSpaceId];
+    }
 }
 
 - (void)interstitialWillAppear:(SMAInterstitial *)interstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Interstitial ad will appear"];
+    [self log: @"Interstitial ad will appear"];
 }
 
 - (void)interstitialDidAppear:(SMAInterstitial *)interstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Interstitial ad displayed"];
+    // Allow the next interstitial to load
+    @synchronized ( self.interstitialAdsLock )
+    {
+        [self.interstitialAds removeObjectForKey: interstitial.adSpaceId];
+    }
+    
+    [self log: @"Interstitial ad displayed"];
+    [self didDisplayAdForPlacementIdentifier: interstitial.adSpaceId];
 }
 
 - (void)interstitialDidClick:(SMAInterstitial *)interstitial
 {
-    [ self.smaatoWaterfallAdapter log: @"Interstitial ad clicked"];
+    [self log: @"Interstitial ad clicked"];
+    [self didClickAdForPlacementIdentifier: interstitial.adSpaceId];
 }
 
 - (void)interstitialWillLeaveApplication:(SMAInterstitial *)interstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Interstitial ad will leave application"];
+    [self log: @"Interstitial ad will leave application"];
 }
 
 - (void)interstitialWillDisappear:(SMAInterstitial *)interstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Interstitial ad will disappear"];
+    [self log: @"Interstitial ad will disappear"];
 }
 
 - (void)interstitialDidDisappear:(SMAInterstitial *)interstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Interstitial ad hidden"];
+    [self log: @"Interstitial ad hidden"];
+    [self didHideAdForPlacementIdentifier: interstitial.adSpaceId];
 }
-@end
 
 #pragma mark - Rewarded Delegate Methods
 
-@implementation SmaatoAppLovinMediationRewardedAdDelegate
-
-- (instancetype)initWithSmaatoWaterfallAdapter:(SmaatoApplovinMediationAdapter *)parentAdapter andNotify:(id<MARewardedAdapterDelegate>)delegate
-{
-    self = [super init];
-    if ( self )
-    {
-        self.smaatoWaterfallAdapter = parentAdapter;
-        self.delegate = delegate;
-    }
-    return self;
-}
-
 - (void)rewardedInterstitialDidLoad:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Rewarded ad loaded"];
-    [self.delegate didLoadRewardedAd];
+    NSString *placementIdentifier = @"133149969";;
+    
+    @synchronized ( self.rewardedAdsLock )
+    {
+        self.rewardedAds[placementIdentifier] = rewardedInterstitial;
+    }
+    
+    [self log: @"Rewarded ad loaded for placement: %@...", placementIdentifier];
+    [self didLoadAdForCreativeIdentifier: rewardedInterstitial.sci placementIdentifier: placementIdentifier];
 }
 
 - (void)rewardedInterstitialDidFail:(nullable SMARewardedInterstitial *)rewardedInterstitial withError:(NSError *)error
 {
-    [self.smaatoWaterfallAdapter log: @"Rewarded ad failed to load with error: %@", error];
+    NSString *placementIdentifier = rewardedInterstitial.adSpaceId;
+    
+    [self log: @"Rewarded ad failed to load for placement: %@...with error: %@", placementIdentifier, error];
     
     MAAdapterError *adapterError = [SmaatoApplovinMediationAdapter toMaxError: error];
-    [self.delegate didFailToLoadRewardedAdWithError: adapterError];
+    [self didFailToLoadAdForPlacementIdentifier: placementIdentifier error: adapterError];
 }
 
 - (void)rewardedInterstitialDidTTLExpire:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Rewarded ad expired"];
+    [self log: @"Rewarded ad expired"];
     
+    @synchronized ( self.rewardedAdsLock )
+    {
+        [self.rewardedAds removeObjectForKey: rewardedInterstitial.adSpaceId];
+    }
 }
 
 - (void)rewardedInterstitialWillAppear:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Rewarded ad will appear"];
+    [self log: @"Rewarded ad will appear"];
 }
 
 - (void)rewardedInterstitialDidAppear:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Rewarded ad displayed"];
-    [self.delegate didDisplayRewardedAd];
+    // Allow the next rewarded ad to load
+    @synchronized ( self.rewardedAdsLock )
+    {
+        [self.rewardedAds removeObjectForKey: rewardedInterstitial.adSpaceId];
+    }
+    
+    [self log: @"Rewarded ad displayed"];
+    [self didDisplayAdForPlacementIdentifier: rewardedInterstitial.adSpaceId];
 }
 
 - (void)rewardedInterstitialDidStart:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Reward ad video started"];
-    [self.delegate didStartRewardedAdVideo];
+    [self log: @"Reward ad video started"];
+    [self didStartRewardedVideoForPlacementIdentifier: rewardedInterstitial.adSpaceId];
 }
 
 - (void)rewardedInterstitialDidClick:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Rewarded ad clicked"];
-    [self.delegate didClickRewardedAd];
+    [self log: @"Rewarded ad clicked"];
+    [self didClickAdForPlacementIdentifier: rewardedInterstitial.adSpaceId];
 }
 
 - (void)rewardedInterstitialWillLeaveApplication:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Rewarded ad will leave application"];
+    [self log: @"Rewarded ad will leave application"];
 }
 
 - (void)rewardedInterstitialDidReward:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Rewarded ad video completed"];
-    self.grantedReward = YES;
-    [self.delegate didCompleteRewardedAdVideo];
+    [self log: @"Rewarded ad video completed"];
+    [self didCompleteRewardedVideoForPlacementIdentifier: rewardedInterstitial.adSpaceId];
     
+    self.grantedReward = YES;
 }
 
 - (void)rewardedInterstitialWillDisappear:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    [self.smaatoWaterfallAdapter log: @"Rewarded ad will disappear"];
+    [self log: @"Rewarded ad will disappear"];
 }
+
 - (void)rewardedInterstitialDidDisappear:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    if ( [self hasGrantedReward] || [self.smaatoWaterfallAdapter shouldAlwaysRewardUser] )
+    NSString *placementIdentifier = rewardedInterstitial.adSpaceId;
+    
+    if ( [self hasGrantedReward] || [self shouldAlwaysRewardUserForPlacementIdentifier: placementIdentifier] )
     {
-        MAReward *reward = [self.smaatoWaterfallAdapter reward];
-        [self.smaatoWaterfallAdapter log: @"Rewarded user with reward: %@", reward];
-        [self.delegate didRewardUserWithReward: reward];
+        MAReward *reward = [self rewardForPlacementIdentifier: placementIdentifier];
+        [self log: @"Rewarded user with reward: %@", reward];
+        [self didRewardUserForPlacementIdentifier: placementIdentifier withReward: reward];
     }
     
-    [self.smaatoWaterfallAdapter log: @"Rewarded ad hidden"];
-    [self.delegate didHideRewardedAd];
+    [self log: @"Rewarded ad hidden"];
+    [self didHideAdForPlacementIdentifier: placementIdentifier];
+}
+
+#pragma mark - Utility Methods
+
+- (void)didLoadAdForCreativeIdentifier:(nullable NSString *)creativeIdentifier placementIdentifier:(NSString *)placementIdentifier
+{
+    // Passing extra info such as creative id supported in 6.15.0+
+    if ( ALSdk.versionCode >= 6150000 && [creativeIdentifier al_isValidString] )
+    {
+        [self performSelector: @selector(didLoadAdForPlacementIdentifier:withExtraInfo:)
+                   withObject: placementIdentifier
+                   withObject: @{@"creative_id" : creativeIdentifier}];
+    }
+    else
+    {
+        [self didLoadAdForPlacementIdentifier: placementIdentifier];
+    }
 }
 
 @end
+
 
 
 
