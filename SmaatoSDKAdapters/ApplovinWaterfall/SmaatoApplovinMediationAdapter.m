@@ -14,7 +14,7 @@
 
 #define PARAM_PUB_ID @"pub_id"
 #define DUMMY_ID @"dummyid"
-static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"11.11.3.3";
+static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"11.11.3.4";
 static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin;
 
 /**
@@ -71,7 +71,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 
 @end
 @implementation SmaatoApplovinMediationAdapter
-
+@dynamic router;
 
 - (void)initializeWithParameters:(id<MAAdapterInitializationParameters>)parameters completionHandler:(void (^)(MAAdapterInitializationStatus, NSString *_Nullable))completionHandler {
     [self log: @"initializeWithParameters called"];
@@ -192,6 +192,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     self.interstitialAd = nil;
    // self.rewardedAdapterDelegate = nil;
     self.rewardedAd = nil;
+    [self.router removeAdapter: self forPlacementIdentifier: self.placementIdentifier];
 }
 
 #pragma mark - MAAdViewAdapter Methods
@@ -224,7 +225,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 
 - (void)loadInterstitialAdForParameters:(id<MAAdapterResponseParameters>)parameters andNotify:(id<MAInterstitialAdapterDelegate>)delegate
 {
-    NSString* placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
+    self.placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
     [self updateAgeRestrictedUser: parameters];
     [self updateLocationCollectionEnabled: parameters];
  //   self.interstitialAdapterDelegate = [[SmaatoAppLovinMediationInterstitialAdDelegate alloc]initWithSmaatoWaterfallAdapter:self andNotify:delegate];
@@ -240,14 +241,14 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
         return;
     }
     
-    if ( !placementIdentifier || ![placementIdentifier al_isValidString])
+    if ( !self.placementIdentifier || ![self.placementIdentifier al_isValidString])
     {
         [self log: @"Interstitial ad load failed: ad request nil"];
         [delegate didFailToLoadInterstitialAdWithError: MAAdapterError.invalidConfiguration];
     }
     else
     {
-        [SmaatoSDK loadInterstitialForAdSpaceId: placementIdentifier delegate: self.router];
+        [SmaatoSDK loadInterstitialForAdSpaceId: self.placementIdentifier delegate: self.router];
     }
 }
 
@@ -284,7 +285,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 
 - (void)loadRewardedAdForParameters:(id<MAAdapterResponseParameters>)parameters andNotify:(id<MARewardedAdapterDelegate>)delegate
 {
-    NSString* placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
+    self.placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
     
     [self updateAgeRestrictedUser: parameters];
     [self updateLocationCollectionEnabled: parameters];
@@ -301,14 +302,14 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
         
         return;
     }
-    if (!placementIdentifier || ![placementIdentifier al_isValidString])
+    if (!self.placementIdentifier || ![self.placementIdentifier al_isValidString])
     {
         [self log: @"Rewarded ad load failed: ad request nil"];
         [delegate didFailToLoadRewardedAdWithError: MAAdapterError.invalidConfiguration];
     }
     else
     {
-        [SmaatoSDK loadRewardedInterstitialForAdSpaceId: placementIdentifier delegate: self.router];
+        [SmaatoSDK loadRewardedInterstitialForAdSpaceId: self.placementIdentifier delegate: self.router];
     }
 }
 - (void)showRewardedAdForParameters:(id<MAAdapterResponseParameters>)parameters andNotify:(id<MARewardedAdapterDelegate>)delegate
