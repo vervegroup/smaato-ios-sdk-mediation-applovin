@@ -14,7 +14,7 @@
 
 #define PARAM_PUB_ID @"pub_id"
 #define DUMMY_ID @"dummyid"
-static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"11.11.3.4";
+static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"11.11.3.0";
 static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin;
 
 /**
@@ -35,33 +35,15 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 - (instancetype)initWithSmaatoWaterfallAdapter:(SmaatoApplovinMediationAdapter *)smaatoWaterfallAdapter andNotify:(id<MAAdViewAdapterDelegate>)delegate;
 @end
 
-//@interface SmaatoAppLovinMediationInterstitialAdDelegate : NSObject<SMAInterstitialDelegate>
-//@property (nonatomic, weak) SmaatoApplovinMediationAdapter *smaatoWaterfallAdapter;
-//@property (nonatomic, strong) id<MAInterstitialAdapterDelegate> delegate;
-//- (instancetype)initWithSmaatoWaterfallAdapter:(SmaatoApplovinMediationAdapter *)smaatoWaterfallAdapter andNotify:(id<MAInterstitialAdapterDelegate>)delegate;
-//@end
-//
-//@interface SmaatoAppLovinMediationRewardedAdDelegate : NSObject<SMARewardedInterstitialDelegate>
-//@property (nonatomic, weak) SmaatoApplovinMediationAdapter *smaatoWaterfallAdapter;
-//@property (nonatomic, strong) id<MARewardedAdapterDelegate> delegate;
-//@property (nonatomic, assign, getter=hasGrantedReward) BOOL grantedReward;
-//- (instancetype)initWithSmaatoWaterfallAdapter:(SmaatoApplovinMediationAdapter *)smaatoWaterfallAdapter andNotify:(id<MARewardedAdapterDelegate>)delegate;
-//@end
-
 @interface SmaatoApplovinMediationAdapter()
 
 // BannerAdView Properties
-
 @property (nonatomic, strong) SMABannerView *bannerAdView;
 @property (nonatomic, strong) SmaatoApplovinMediationBannerAdDelegate *bannerAdViewAdapterDelegate;
-
 // Interstitial
 @property (nonatomic, strong) SMAInterstitial *interstitialAd;
-//@property (nonatomic, strong) SmaatoAppLovinMediationInterstitialAdDelegate *interstitialAdapterDelegate;
-
 // Rewarded
 @property (nonatomic, strong) SMARewardedInterstitial *rewardedAd;
-//@property (nonatomic, strong) SmaatoAppLovinMediationRewardedAdDelegate *rewardedAdapterDelegate;
 // Used by the mediation adapter router
 @property (nonatomic, copy, nullable) NSString *placementIdentifier;
 // Interstitial/Rewarded ad delegate router
@@ -188,9 +170,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     self.bannerAdView = nil;
     self.bannerAdViewAdapterDelegate.delegate = nil;
     self.bannerAdViewAdapterDelegate = nil;
-   // self.interstitialAdapterDelegate.delegate = nil;
     self.interstitialAd = nil;
-   // self.rewardedAdapterDelegate = nil;
     self.rewardedAd = nil;
     [self.router removeAdapter: self forPlacementIdentifier: self.placementIdentifier];
 }
@@ -228,7 +208,6 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     self.placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
     [self updateAgeRestrictedUser: parameters];
     [self updateLocationCollectionEnabled: parameters];
- //   self.interstitialAdapterDelegate = [[SmaatoAppLovinMediationInterstitialAdDelegate alloc]initWithSmaatoWaterfallAdapter:self andNotify:delegate];
     [self.router addInterstitialAdapter: self
                                delegate: delegate
                  forPlacementIdentifier: self.placementIdentifier];
@@ -289,8 +268,6 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     
     [self updateAgeRestrictedUser: parameters];
     [self updateLocationCollectionEnabled: parameters];
-    
-    //self.rewardedAdapterDelegate = [[SmaatoAppLovinMediationRewardedAdDelegate alloc]initWithSmaatoWaterfallAdapter:self andNotify:delegate];
     [self.router addRewardedAdapter: self
                            delegate: delegate
              forPlacementIdentifier: self.placementIdentifier];
