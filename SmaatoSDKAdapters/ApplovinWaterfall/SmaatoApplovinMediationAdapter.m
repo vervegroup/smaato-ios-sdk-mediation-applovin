@@ -21,6 +21,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
  * Router for interstitial/rewarded ad events.
  * Ads are removed on ad displayed/expired, as Smaato will allow a new ad load for the same adSpaceId.
  */
+
 @interface SmaatoMediationAdapterRouter : ALMediationAdapterRouter <SMAInterstitialDelegate, SMARewardedInterstitialDelegate>
 - (nullable SMAInterstitial *)interstitialAdForPlacementIdentifier:(NSString *)placementIdentifier;
 - (nullable SMARewardedInterstitial *)rewardedAdForPlacementIdentifier:(NSString *)placementIdentifier;
