@@ -16,7 +16,6 @@
 #define DUMMY_ID @"dummyid"
 static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"11.11.3.0";
 static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin;
-
 /**
  * Router for interstitial/rewarded ad events.
  * Ads are removed on ad displayed/expired, as Smaato will allow a new ad load for the same adSpaceId.
