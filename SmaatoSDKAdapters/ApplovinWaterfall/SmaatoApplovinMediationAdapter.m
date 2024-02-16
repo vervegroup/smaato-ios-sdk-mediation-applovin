@@ -14,7 +14,7 @@
 
 #define PARAM_PUB_ID @"pub_id"
 #define DUMMY_ID @"dummyid"
-static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"11.11.3.0";
+static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"12.0.0.0";
 static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin;
 /**
  * Router for interstitial/rewarded ad events.
