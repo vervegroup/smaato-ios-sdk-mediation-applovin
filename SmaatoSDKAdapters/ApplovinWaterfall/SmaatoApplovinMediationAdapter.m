@@ -189,7 +189,7 @@ static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"13.0.0.0";
 {
     NSString* placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
     [self updateLocationCollectionEnabled: parameters];
-    
+    self.interstitialAdapterDelegate = [[SmaatoAppLovinMediationInterstitialAdDelegate alloc] initWithSmaatoWaterfallAdapter:self andNotify:delegate];
     if ( !placementIdentifier || ![placementIdentifier al_isValidString])
     {
         [self log: @"Interstitial ad load failed: ad request nil with valid bid response"];
@@ -234,7 +234,7 @@ static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"13.0.0.0";
     NSString* placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
     
     [self updateLocationCollectionEnabled: parameters];
-    
+    self.rewardedAdapterDelegate = [[SmaatoAppLovinMediationRewardedAdDelegate alloc] initWithSmaatoWaterfallAdapter:self andNotify:delegate];
     
     if (!placementIdentifier || ![placementIdentifier al_isValidString])
     {
