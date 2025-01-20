@@ -14,7 +14,7 @@
 
 #define PARAM_PUB_ID @"pub_id"
 #define DUMMY_ID @"dummyid"
-static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"13.0.0.3";
+static NSString *const kSmaatoApplovinMediationAdaptorVersion = @"13.0.0.4";
 static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin;
 /**
  * Router for interstitial/rewarded ad events.
@@ -524,7 +524,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 
 - (void)rewardedInterstitialDidLoad:(SMARewardedInterstitial *)rewardedInterstitial
 {
-    NSString *placementIdentifier = @"133149969";;
+    NSString *placementIdentifier = rewardedInterstitial.adSpaceId;
     
     @synchronized ( self.rewardedAdsLock )
     {
@@ -569,13 +569,13 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     }
     
     [self log: @"Rewarded ad displayed"];
-    [self didDisplayAdForPlacementIdentifier: rewardedInterstitial.adSpaceId];
+  //  [self didDisplayAdForPlacementIdentifier: rewardedInterstitial.adSpaceId];
 }
 
 - (void)rewardedInterstitialDidStart:(SMARewardedInterstitial *)rewardedInterstitial
 {
     [self log: @"Reward ad video started"];
-  //  [self.delegate didDisplayRewardedAd];
+    [self didDisplayAdForPlacementIdentifier: rewardedInterstitial.adSpaceId];
 }
 
 - (void)rewardedInterstitialDidClick:(SMARewardedInterstitial *)rewardedInterstitial
