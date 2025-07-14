@@ -75,7 +75,7 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 
 - (NSString *)SDKVersion
 {
-    return @"22.9.3.1";
+    return [SmaatoSDK sdkVersion];
 }
 
 - (NSString *)adapterVersion
