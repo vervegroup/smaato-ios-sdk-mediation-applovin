@@ -57,13 +57,13 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
     static dispatch_once_t onceToken;
        dispatch_once(&onceToken, ^{
            
-           NSString *pubID = [parameters.serverParameters al_stringForKey: @"pub_id" defaultValue: @""];
-           [self log: @"Initializing Smaato SDK with publisher id: %@...", pubID];
+           NSString *publisherId = [parameters.serverParameters al_stringForKey: @"publisher_v2" defaultValue: @""];
+           [self log: @"Initializing Smaato SDK with publisher id: %@...", publisherId];
                       
            // NOTE: This does not work atm
            [self updateLocationCollectionEnabled: parameters];
            
-           SMAConfiguration *config = [[SMAConfiguration alloc] initWithPublisherId: pubID];
+           SMAConfiguration *config = [[SMAConfiguration alloc] initWithPublisherId: publisherId];
            config.logLevel = [parameters isTesting] ? kSMALogLevelVerbose : kSMALogLevelError;
            config.httpsOnly = [parameters.serverParameters al_numberForKey: @"https_only"].boolValue;
            
@@ -71,6 +71,34 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
        });
        
        completionHandler(MAAdapterInitializationStatusDoesNotApply, nil);
+}
+
+- (void)initializeWithParameters:(id<MAAdapterResponseParameters>)parameters {
+    [self log: @"initializeWithParameters called"];
+    
+    NSString *publisherId = [parameters.customParameters al_stringForKey: @"publisher_v2" defaultValue: @""];
+    [self log: @"Initializing Smaato SDK with publisher id: %@...", publisherId];
+                      
+    // NOTE: This does not work atm
+    [self updateLocationCollectionEnabled: parameters];
+           
+    SMAConfiguration *config = [[SMAConfiguration alloc] initWithPublisherId: publisherId];
+    //config.logLevel = [parameters isTesting] ? kSMALogLevelVerbose : kSMALogLevelError;
+    config.logLevel = kSMALogLevelVerbose;
+    config.httpsOnly = [parameters.serverParameters al_numberForKey: @"https_only"].boolValue;
+           
+    [SmaatoSDK initSDKWithConfig: config];
+}
+
+- (BOOL) isNotInitialised:(id<MAAdapterResponseParameters>) parameters {
+    if (parameters != nil && parameters.customParameters != nil && parameters.customParameters.count > 0) {
+        NSString *publisherId = [parameters.customParameters al_stringForKey:@"publisher_v2" defaultValue:nil];
+        if (publisherId != nil && ![publisherId isEqualToString:@""]) {
+            return [SmaatoSDK publisherId] == nil || ![[SmaatoSDK publisherId] isEqualToString:publisherId];
+        }
+    }
+    
+    return [SmaatoSDK publisherId] == nil || ([SmaatoSDK publisherId] != nil && [[SmaatoSDK publisherId] isEqualToString:@""]);
 }
 
 - (NSString *)SDKVersion
@@ -165,53 +193,62 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 
 - (void)loadAdViewAdForParameters:(id<MAAdapterResponseParameters>)parameters adFormat:(MAAdFormat *)adFormat andNotify:(id<MAAdViewAdapterDelegate>)delegate
 {
-    [self log: @"Loading %@ ad view ad...", adFormat.label];
-    
-    NSString* placementIdentifier = [parameters thirdPartyAdPlacementIdentifier];
-    [self updateLocationCollectionEnabled: parameters];
-    
-    self.bannerAdView = [[SMABannerView alloc] init];
-    self.bannerAdView.autoreloadInterval = kSMABannerAutoreloadIntervalDisabled;
-    
-    self.bannerAdViewAdapterDelegate = [[SmaatoApplovinMediationBannerAdDelegate alloc] initWithSmaatoWaterfallAdapter:self andNotify:delegate];
-    self.bannerAdView.delegate = self.bannerAdViewAdapterDelegate;
-    
-    if ( !placementIdentifier || ![placementIdentifier al_isValidString] )
-    {
-        [self log: @"%@ ad load failed: ad request nil with valid bid response", adFormat.label];
-        [delegate didFailToLoadAdViewAdWithError: MAAdapterError.invalidConfiguration];
+    if ( [self isNotInitialised: parameters] ) {
+        [self initializeWithParameters:parameters];
+    } else {
+        [self log: @"Loading %@ ad view ad...", adFormat.label];
+        
+        NSString* placementIdentifier = [parameters thirdPartyAdPlacementIdentifier];
+        [self updateLocationCollectionEnabled: parameters];
+        
+        self.bannerAdView = [[SMABannerView alloc] init];
+        self.bannerAdView.autoreloadInterval = kSMABannerAutoreloadIntervalDisabled;
+        
+        self.bannerAdViewAdapterDelegate = [[SmaatoApplovinMediationBannerAdDelegate alloc] initWithSmaatoWaterfallAdapter:self andNotify:delegate];
+        self.bannerAdView.delegate = self.bannerAdViewAdapterDelegate;
+        
+        if ( !placementIdentifier || ![placementIdentifier al_isValidString] )
+        {
+            [self log: @"%@ ad load failed: ad request nil with valid bid response", adFormat.label];
+            [delegate didFailToLoadAdViewAdWithError: MAAdapterError.invalidConfiguration];
+        }
+        else
+        {
+            [self.bannerAdView loadWithAdSpaceId: placementIdentifier adSize: [self adSizeForAdFormat: adFormat]];
+        }
     }
-    else
-    {
-        [self.bannerAdView loadWithAdSpaceId: placementIdentifier adSize: [self adSizeForAdFormat: adFormat]];
-    }
+    
 }
 #pragma mark - MAInterstitialAdapter Methods
 
 - (void)loadInterstitialAdForParameters:(id<MAAdapterResponseParameters>)parameters andNotify:(id<MAInterstitialAdapterDelegate>)delegate
 {
-    self.placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
-    [self updateLocationCollectionEnabled: parameters];
-    [self.router addInterstitialAdapter: self
-                               delegate: delegate
-                 forPlacementIdentifier: self.placementIdentifier];
-    
-    if ( [[self.router interstitialAdForPlacementIdentifier: self.placementIdentifier] availableForPresentation] )
-    {
-        [self log: @"Interstitial ad already loaded for placement: %@...", self.placementIdentifier];
-        [delegate didLoadInterstitialAd];
+    if ( [self isNotInitialised: parameters] ) {
+        [self initializeWithParameters:parameters];
+    } else {
+        self.placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
+        [self updateLocationCollectionEnabled: parameters];
+        [self.router addInterstitialAdapter: self
+                                   delegate: delegate
+                     forPlacementIdentifier: self.placementIdentifier];
         
-        return;
-    }
-    
-    if ( !self.placementIdentifier || ![self.placementIdentifier al_isValidString])
-    {
-        [self log: @"Interstitial ad load failed: ad request nil"];
-        [delegate didFailToLoadInterstitialAdWithError: MAAdapterError.invalidConfiguration];
-    }
-    else
-    {
-        [SmaatoSDK loadInterstitialForAdSpaceId: self.placementIdentifier delegate: self.router];
+        if ( [[self.router interstitialAdForPlacementIdentifier: self.placementIdentifier] availableForPresentation] )
+        {
+            [self log: @"Interstitial ad already loaded for placement: %@...", self.placementIdentifier];
+            [delegate didLoadInterstitialAd];
+            
+            return;
+        }
+        
+        if ( !self.placementIdentifier || ![self.placementIdentifier al_isValidString])
+        {
+            [self log: @"Interstitial ad load failed: ad request nil"];
+            [delegate didFailToLoadInterstitialAdWithError: MAAdapterError.invalidConfiguration];
+        }
+        else
+        {
+            [SmaatoSDK loadInterstitialForAdSpaceId: self.placementIdentifier delegate: self.router];
+        }
     }
 }
 
@@ -248,30 +285,35 @@ static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin
 
 - (void)loadRewardedAdForParameters:(id<MAAdapterResponseParameters>)parameters andNotify:(id<MARewardedAdapterDelegate>)delegate
 {
-    self.placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
-    
-    [self updateLocationCollectionEnabled: parameters];
-    [self.router addRewardedAdapter: self
-                           delegate: delegate
-             forPlacementIdentifier: self.placementIdentifier];
-    
-    if ( [[self.router rewardedAdForPlacementIdentifier: self.placementIdentifier] availableForPresentation] )
-    {
-        [self log: @"Rewarded ad already loaded for placement: %@...", self.placementIdentifier];
-        [delegate didLoadRewardedAd];
+    if ( [self isNotInitialised: parameters] ) {
+        [self initializeWithParameters:parameters];
+    } else {
+        self.placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
         
-        return;
-    }
-    if (!self.placementIdentifier || ![self.placementIdentifier al_isValidString])
-    {
-        [self log: @"Rewarded ad load failed: ad request nil"];
-        [delegate didFailToLoadRewardedAdWithError: MAAdapterError.invalidConfiguration];
-    }
-    else
-    {
-        [SmaatoSDK loadRewardedInterstitialForAdSpaceId: self.placementIdentifier delegate: self.router];
+        [self updateLocationCollectionEnabled: parameters];
+        [self.router addRewardedAdapter: self
+                               delegate: delegate
+                 forPlacementIdentifier: self.placementIdentifier];
+        
+        if ( [[self.router rewardedAdForPlacementIdentifier: self.placementIdentifier] availableForPresentation] )
+        {
+            [self log: @"Rewarded ad already loaded for placement: %@...", self.placementIdentifier];
+            [delegate didLoadRewardedAd];
+            
+            return;
+        }
+        if (!self.placementIdentifier || ![self.placementIdentifier al_isValidString])
+        {
+            [self log: @"Rewarded ad load failed: ad request nil"];
+            [delegate didFailToLoadRewardedAdWithError: MAAdapterError.invalidConfiguration];
+        }
+        else
+        {
+            [SmaatoSDK loadRewardedInterstitialForAdSpaceId: self.placementIdentifier delegate: self.router];
+        }
     }
 }
+
 - (void)showRewardedAdForParameters:(id<MAAdapterResponseParameters>)parameters andNotify:(id<MARewardedAdapterDelegate>)delegate
 {
     NSString *placementIdentifier = parameters.thirdPartyAdPlacementIdentifier;
