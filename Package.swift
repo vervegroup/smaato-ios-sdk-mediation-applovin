@@ -15,13 +15,13 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/vervegroup/Smaato-ios-sdk-standalone.git", branch: "VMI-1490-add-spm-support"),
-        .package(url: "https://github.com/AppLovin/AppLovin-MAX-Swift-Package", .upToNextMajor(from: "10.3.6"))
+        .package(url: "https://github.com/AppLovin/AppLovin-MAX-Swift-Package.git", .upToNextMajor(from: "10.3.6"))
     ],
     targets: [
         .target(
             name: "SmaatoSDKApplovinWaterfallAdapter",
             dependencies: [
-                .product(name: "SmaatoSDK", package: "SmaatoSDKStandalone"),
+                .product(name: "SmaatoSDK", package: "Smaato-ios-sdk-standalone"),
                 .product(name: "AppLovinSDK", package: "AppLovin-MAX-Swift-Package")
             ],
             path: "SmaatoSDKAdapters/ApplovinWaterfall",
