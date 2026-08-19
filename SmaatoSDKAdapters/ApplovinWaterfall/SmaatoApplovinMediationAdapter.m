@@ -11,7 +11,7 @@
 #import <SmaatoSDKInterstitial/SmaatoSDKInterstitial.h>
 #import <SmaatoSDKRewardedAds/SmaatoSDKRewardedAds.h>
 
-static NSString *const kSmaatoApplovinMediationAdapterVersion = @"23.2.0.0";
+static NSString *const kSmaatoApplovinMediationAdapterVersion = @"23.2.1.0";
 static MAAdapterInitializationStatus ALSmaatoInitializationStatus = NSIntegerMin;
 /**
  * Router for interstitial/rewarded ad events.
